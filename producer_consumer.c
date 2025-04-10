@@ -3,71 +3,92 @@
 #include <pthread.h>
 #include <unistd.h>
 
+// Define the buffer size (number of items it can hold)
 #define BUFFER_SIZE 5
 
+// Declare the buffer and the count of items in the buffer
 int buffer[BUFFER_SIZE];
 int count = 0;
 
+// Declare a mutex to synchronize access to the buffer
 pthread_mutex_t mutex;
-pthread_cond_t cond_producer;
-pthread_cond_t cond_consumer;
 
+// Producer function that produces items and adds them to the buffer
 void* producer(void* arg) {
     for (int i = 0; i < 10; ++i) {
+        // Generate a random item to produce
         int item = rand() % 100;
 
+        // Lock the mutex to ensure exclusive access to the buffer
         pthread_mutex_lock(&mutex);
-
+        
+        // Wait until there is space in the buffer
+        // If the buffer is full (count == BUFFER_SIZE), the producer waits
         while (count == BUFFER_SIZE) {
-            pthread_cond_wait(&cond_producer, &mutex);
+            // Unlock the mutex before sleeping, to allow the consumer to consume items
+            pthread_mutex_unlock(&mutex);  
+            sleep(1);  // Simulate the wait for space in the buffer
+            pthread_mutex_lock(&mutex);  // Re-lock the mutex after waking up
         }
 
+        // Add the item to the buffer and increase the count
         buffer[count++] = item;
-        printf("Producer produced: %d\n", item);
-
-        pthread_cond_signal(&cond_consumer);
+        printf("Produced: %d\n", item);
+        
+        // Unlock the mutex after modifying the shared buffer
         pthread_mutex_unlock(&mutex);
 
-        sleep(1);
+        // Simulate the time taken to process an item (e.g., production time)
+        sleep(1);  
     }
-    return NULL;
+    return NULL;  // End the producer thread
 }
 
+// Consumer function that consumes items from the buffer
 void* consumer(void* arg) {
     for (int i = 0; i < 10; ++i) {
+        // Lock the mutex to ensure exclusive access to the buffer
         pthread_mutex_lock(&mutex);
-
+        
+        // Wait until there is something to consume in the buffer
+        // If the buffer is empty (count == 0), the consumer waits
         while (count == 0) {
-            pthread_cond_wait(&cond_consumer, &mutex);
+            // Unlock the mutex before sleeping, to allow the producer to produce
+            pthread_mutex_unlock(&mutex);  
+            sleep(1);  // Simulate the wait for items in the buffer
+            pthread_mutex_lock(&mutex);  // Re-lock the mutex after waking up
         }
 
+        // Consume the item from the buffer and decrease the count
         int item = buffer[--count];
-        printf("Consumer consumed: %d\n", item);
-
-        pthread_cond_signal(&cond_producer);
+        printf("Consumed: %d\n", item);
+        
+        // Unlock the mutex after modifying the shared buffer
         pthread_mutex_unlock(&mutex);
 
-        sleep(2);
+        // Simulate the time taken to process an item (e.g., consumption time)
+        sleep(2);  
     }
-    return NULL;
+    return NULL;  // End the consumer thread
 }
 
 int main() {
-    pthread_t prod, cons;
+    pthread_t prod, cons;  // Declare two threads: one for producer and one for consumer
 
+    // Initialize the mutex before using it
     pthread_mutex_init(&mutex, NULL);
-    pthread_cond_init(&cond_producer, NULL);
-    pthread_cond_init(&cond_consumer, NULL);
 
+    // Create the producer and consumer threads
     pthread_create(&prod, NULL, producer, NULL);
     pthread_create(&cons, NULL, consumer, NULL);
 
+    // Wait for the threads to finish execution
     pthread_join(prod, NULL);
     pthread_join(cons, NULL);
 
+    // Destroy the mutex after use to free the resources
     pthread_mutex_destroy(&mutex);
-    pthread_cond_destroy(&cond_producer);
-    pthread_cond_destroy(&cond_consumer);
 
-    return 0;
+    return 0;  // Return success (exit the program)
 }
+
