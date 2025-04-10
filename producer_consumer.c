@@ -1,61 +1,73 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
 
-int mutex=1, full=0, empty=5, x=0;
+#define BUFFER_SIZE 5
 
-void producer()
-{
-	--mutex;
-	++full;
-	--empty;
-	x++;
-	printf("\nProducer added an item");
-	++mutex;
-	}
-	
-	void consumer()
-	{
-		--mutex;
-		--full;
-		++empty;
-		x--;
-		printf("\nConsumer consumed an item");
-		++mutex;
-		}
-		
-		int main()
-		{
-			printf("\nEnter 1 for producer\nEnter 2 for consumer\nEnter 3 to exit\n");
-			
-			for(int i=100; i>0; i--)
-			{
-				int c;
-				printf("\n\nEnter your choice:\t");
-				scanf("%d", &c);
-				
-				switch(c)
-				{
-					case 1: if (mutex==1 && empty!=0)
-					         {
-									producer();
-									}
-									else{
-										printf("\nBuffer is full....!");}
-										break;
-										
-										
-					case 2:   			if (mutex==1 && full!=0)
-											{
-												consumer();
-												}
-												
-												else{
-													printf("\nBuffer is empty...!");}
-													break;
-													
-													
-						case 3: return 0;
-					}
-				}
-				
-				return 0;
-			}
+int buffer[BUFFER_SIZE];
+int count = 0;
+
+pthread_mutex_t mutex;
+pthread_cond_t cond_producer;
+pthread_cond_t cond_consumer;
+
+void* producer(void* arg) {
+    for (int i = 0; i < 10; ++i) {
+        int item = rand() % 100;
+
+        pthread_mutex_lock(&mutex);
+
+        while (count == BUFFER_SIZE) {
+            pthread_cond_wait(&cond_producer, &mutex);
+        }
+
+        buffer[count++] = item;
+        printf("Producer produced: %d\n", item);
+
+        pthread_cond_signal(&cond_consumer);
+        pthread_mutex_unlock(&mutex);
+
+        sleep(1);
+    }
+    return NULL;
+}
+
+void* consumer(void* arg) {
+    for (int i = 0; i < 10; ++i) {
+        pthread_mutex_lock(&mutex);
+
+        while (count == 0) {
+            pthread_cond_wait(&cond_consumer, &mutex);
+        }
+
+        int item = buffer[--count];
+        printf("Consumer consumed: %d\n", item);
+
+        pthread_cond_signal(&cond_producer);
+        pthread_mutex_unlock(&mutex);
+
+        sleep(2);
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t prod, cons;
+
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&cond_producer, NULL);
+    pthread_cond_init(&cond_consumer, NULL);
+
+    pthread_create(&prod, NULL, producer, NULL);
+    pthread_create(&cons, NULL, consumer, NULL);
+
+    pthread_join(prod, NULL);
+    pthread_join(cons, NULL);
+
+    pthread_mutex_destroy(&mutex);
+    pthread_cond_destroy(&cond_producer);
+    pthread_cond_destroy(&cond_consumer);
+
+    return 0;
+}
